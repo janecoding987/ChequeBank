@@ -64,6 +64,102 @@ struct ChequeState {
 - `Revoked` (2): Cheque has been revoked
 - `Redeemed` (3): Cheque has been redeemed
 
+### Cheque Status Flow
+
+The cheque status follows a clear state transition pattern:
+
+```
+┌─────────┐
+│  None   │  ← Initial state (cheque not yet activated on-chain)
+└────┬────┘
+     │
+     │ active() - Activate cheque with valid signature
+     │
+     ▼
+┌─────────┐
+│ Active  │  ← Cheque is active and can be:
+└────┬────┘     - Redeemed by current payee (redeem())
+     │          - Revoked by payer (if signOverCount == 0)
+     │          - Revoked by current payee (if signOverCount > 0)
+     │          - Signed over to another payee (notifySignOver())
+     │
+     │          ┌─────────────────────────┐
+     │          │                         │
+     │          │ notifySignOver()        │
+     │          │ (updates payee,         │
+     │          │  stays Active)          │
+     │          │                         │
+     │          └──────────┬──────────────┘
+     │                     │
+     │          (self-loop: Active → Active)
+     │
+     ├─────────────────────┴─────────────────────┐
+     │                                           │
+     │ redeem()                                  │ revoke()
+     │                                           │
+     ▼                                           ▼
+┌─────────┐                                ┌─────────┐
+│Redeemed │                                │ Revoked │
+└─────────┘                                └─────────┘
+     │                                           │
+     │                                           │
+     └───────────────────┬───────────────────────┘
+                         │
+                         │ (Final states - no further transitions)
+                         │
+                         ▼
+                 [Cheque lifecycle ends]
+```
+
+#### State Transition Rules
+
+1. **None → Active**
+   - **Trigger**: `active(Cheque calldata chequeData)`
+   - **Requirements**:
+     - Valid EIP-712 signature from payer
+     - Valid timing (within `validFrom` and `validThru`)
+     - Non-zero payer and payee addresses
+     - Cheque not already activated
+   - **Result**: Cheque state stored on-chain, status set to `Active`
+
+2. **Active → Redeemed**
+   - **Trigger**: `redeem(bytes32 chequeId)`
+   - **Requirements**:
+     - Cheque status is `Active`
+     - Valid timing (within validity period)
+     - Caller is the current payee
+     - Payer has sufficient balance
+   - **Result**: Funds transferred from payer to payee, status set to `Redeemed`, other fields cleared
+
+3. **Active → Revoked**
+   - **Trigger**: `revoke(bytes32 chequeId)`
+   - **Requirements**:
+     - Cheque status is `Active`
+     - Authorization:
+       - If `signOverCount == 0`: Only payer can revoke
+       - If `signOverCount > 0`: Only current payee can revoke
+   - **Result**: Status set to `Revoked`, other fields cleared
+
+4. **Active → Active** (Sign-Over)
+   - **Trigger**: `notifySignOver(SignOver calldata signOverData)`
+   - **Requirements**:
+     - Cheque status is `Active`
+     - Valid sign-over signature from current payee
+     - Correct counter (`signOverCount + 1`)
+     - Maximum sign-overs not reached (max 6)
+   - **Result**: Current payee updated, `signOverCount` incremented, status remains `Active`
+
+5. **Redeemed / Revoked → (No transitions)**
+   - **Final states**: Once a cheque is `Redeemed` or `Revoked`, no further state transitions are possible
+   - The cheque's lifecycle ends at these states
+
+#### Important Notes
+
+- **One-way transitions**: Once a cheque reaches `Redeemed` or `Revoked`, it cannot return to `Active` or any other state
+- **Sign-over preserves Active state**: Sign-overs update the payee but keep the status as `Active`
+- **Authorization changes with sign-overs**: Revocation authority transfers from payer to current payee after the first sign-over
+- **State clearing**: When a cheque is `Redeemed` or `Revoked`, all fields except `status` are cleared to save gas
+
 ## Main Functions
 
 ### 1. deposit() payable external
