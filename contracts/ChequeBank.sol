@@ -181,26 +181,6 @@ contract ChequeBank is IChequeBank, ReentrancyGuard {
     }
     
     /**
-     * @notice Recover the signer address from a signature
-     * @dev Uses OpenZeppelin's ECDSA library which handles:
-     *      - Signature malleability protection (EIP-2)
-     *      - Zero address validation
-     *      - Invalid signature detection
-     * @param hash The message hash
-     * @param signature The signature bytes
-     * @return The signer address
-     */
-    function _recoverSigner(bytes32 hash, bytes memory signature) 
-        internal pure returns (address) 
-    {
-        address signer = ECDSA.recover(hash, signature);
-        if (signer == address(0)) {
-            revert InvalidSignature();
-        }
-        return signer;
-    }
-    
-    /**
      * @notice Verify a cheque signature
      * @param cheque The cheque with signature
      * @return True if signature is valid
@@ -209,7 +189,7 @@ contract ChequeBank is IChequeBank, ReentrancyGuard {
         internal view returns (bool) 
     {
         bytes32 messageHash = _hashCheque(cheque.chequeInfo);
-        address signer = _recoverSigner(messageHash, cheque.sig);
+        address signer = ECDSA.recover(messageHash, cheque.sig);
         return signer == cheque.chequeInfo.payer;
     }
     
@@ -222,7 +202,7 @@ contract ChequeBank is IChequeBank, ReentrancyGuard {
         internal view returns (bool) 
     {
         bytes32 messageHash = _hashSignOver(signOver.signOverInfo);
-        address signer = _recoverSigner(messageHash, signOver.sig);
+        address signer = ECDSA.recover(messageHash, signOver.sig);
         return signer == signOver.signOverInfo.oldPayee;
     }
     
