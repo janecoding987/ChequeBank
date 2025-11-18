@@ -1,9 +1,15 @@
 # Foundry
 out/
 cache/
+broadcast/
+forge-cache/
+forge-out/
 
 # Node
 node_modules/
+# Note: package-lock.json should be committed for reproducible builds
+# yarn.lock
+# pnpm-lock.yaml
 
 # IDE
 .vscode/
@@ -11,8 +17,31 @@ node_modules/
 *.swp
 *.swo
 *~
+*.sublime-project
+*.sublime-workspace
 
 # OS
 .DS_Store
 Thumbs.db
+*.log
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Coverage reports
+coverage/
+lcov.info
+*.lcov
+
+# Build artifacts
+artifacts/
+typechain/
+typechain-types/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
 
