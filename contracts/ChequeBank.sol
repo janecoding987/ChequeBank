@@ -40,7 +40,10 @@ contract ChequeBank is IChequeBank, ReentrancyGuard {
         bytes32 indexed chequeId,
         address indexed payer,
         address indexed payee,
-        uint256 amount
+        uint256 amount,
+        uint32 nonce,
+        uint32 validFrom,
+        uint32 validThru
     );
     event ChequeRedeemed(
         bytes32 indexed chequeId,
@@ -68,10 +71,9 @@ contract ChequeBank is IChequeBank, ReentrancyGuard {
     error ChequeNotYetValid();
     error MaxSignOversReached();
     error InvalidCounter();
-    error InvalidSignOverChain();
     error Unauthorized();
     error TransferFailed();
-    error ChequeAlreadySignedOver();
+    error ZeroAddress();
     
     // ============ Constructor ============
     constructor() {
@@ -234,7 +236,6 @@ contract ChequeBank is IChequeBank, ReentrancyGuard {
      * @notice Verify a sign-over chain segment
      * @param signOverData Array of sign-over data
      * @param chequeId The cheque ID
-     * @param startIndex Starting index in signOverData array
      * @param startPayee The expected oldPayee for the first sign-over
      * @return isValid True if the chain is valid
      * @return finalPayee The final payee after the sign-over chain (address(0) if invalid)
@@ -242,11 +243,10 @@ contract ChequeBank is IChequeBank, ReentrancyGuard {
     function _verifySignOverChainSegment(
         SignOver[] calldata signOverData,
         bytes32 chequeId,
-        uint256 startIndex,
         address startPayee
     ) internal view returns (bool isValid, address finalPayee) {
         address expectedOldPayee = startPayee;
-        for (uint256 i = startIndex; i < signOverData.length; i++) {
+        for (uint256 i = 0; i < signOverData.length; i++) {
             // Verify sign-over signature
             if (!_verifySignOverSignature(signOverData[i])) {
                 return (false, address(0));  // Invalid signature
@@ -323,7 +323,7 @@ contract ChequeBank is IChequeBank, ReentrancyGuard {
             revert InsufficientBalance();
         }
         if (recipient == address(0)) {
-            revert();
+            revert ZeroAddress();
         }
         balances[msg.sender] -= amount;
         _safeTransferEth(recipient, amount);
@@ -347,11 +347,8 @@ contract ChequeBank is IChequeBank, ReentrancyGuard {
         );
 
         // Validate payer and payee addresses
-        if (chequeData.chequeInfo.payer == address(0)) {
-            revert InvalidPayee();  // Invalid payer address
-        }
-        if (chequeData.chequeInfo.payee == address(0)) {
-            revert InvalidPayee();  // Invalid payee address
+        if (chequeData.chequeInfo.payer == address(0) || chequeData.chequeInfo.payee == address(0)) {
+            revert ZeroAddress();
         }
 
         // Compute chequeId from cheque information
@@ -377,7 +374,10 @@ contract ChequeBank is IChequeBank, ReentrancyGuard {
             chequeId,
             chequeData.chequeInfo.payer,
             chequeData.chequeInfo.payee,
-            chequeData.chequeInfo.amount
+            chequeData.chequeInfo.amount,
+            chequeData.chequeInfo.nonce,
+            chequeData.chequeInfo.validFrom,
+            chequeData.chequeInfo.validThru
         );
     }
     
@@ -618,7 +618,6 @@ contract ChequeBank is IChequeBank, ReentrancyGuard {
         (bool isValid, address finalPayee) = _verifySignOverChainSegment(
             signOverData,
             chequeId,
-            0,
             chequeData.chequeInfo.payee
         );
         

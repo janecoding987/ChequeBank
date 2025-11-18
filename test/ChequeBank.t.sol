@@ -33,7 +33,10 @@ contract ChequeBankTest is Test {
         bytes32 indexed chequeId,
         address indexed payer,
         address indexed payee,
-        uint256 amount
+        uint256 amount,
+        uint32 nonce,
+        uint32 validFrom,
+        uint32 validThru
     );
     event ChequeRedeemed(
         bytes32 indexed chequeId,
@@ -276,7 +279,7 @@ contract ChequeBankTest is Test {
         vm.startPrank(payer);
         chequeBank.deposit{value: 5 ether}();
         
-        vm.expectRevert();
+        vm.expectRevert(ChequeBank.ZeroAddress.selector);
         chequeBank.withdraw(1 ether, payable(address(0)));
         vm.stopPrank();
     }
@@ -297,7 +300,7 @@ contract ChequeBankTest is Test {
         bytes32 chequeId = _computeChequeId(cheque.chequeInfo);
         
         vm.expectEmit(true, true, true, true);
-        emit ChequeActivated(chequeId, payer, payee, CHEQUE_AMOUNT);
+        emit ChequeActivated(chequeId, payer, payee, CHEQUE_AMOUNT, NONCE, VALID_FROM, VALID_THRU);
         
         chequeBank.active(cheque);
         
@@ -387,7 +390,7 @@ contract ChequeBankTest is Test {
             payerPrivateKey
         );
         
-        vm.expectRevert(ChequeBank.InvalidPayee.selector);
+        vm.expectRevert(ChequeBank.ZeroAddress.selector);
         chequeBank.active(cheque);
     }
     
