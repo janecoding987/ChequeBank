@@ -25,14 +25,8 @@ A smart contract system for managing e-cheques with EIP-712 structured signature
 **This means**:
 - ✅ The payer can deposit funds at any time after cheque activation and before redemption
 - ⚠️ If the payer's balance is insufficient at redemption time, `redeem` will fail and revert
-- ✅ This design is **intentional** and **acceptable** because:
-  - It allows payers to deposit funds only when needed, improving capital efficiency
-  - Payees can use `isChequeValid` to check cheque validity and payer balance before redemption
-  - If the balance is insufficient, payees can wait for the payer to deposit funds before redeeming
 
-**Recommendations**:
-- Payees should call `isChequeValid` to verify cheque status and payer balance before attempting `redeem`
-- Payers should deposit sufficient funds promptly after cheque activation to ensure payees can successfully redeem
+
 
 ## Contract Architecture
 
@@ -131,7 +125,6 @@ chequeBank.withdraw(1 ether, payable(recipient));
 - The `active` function **does not check** the payer's account balance
 - The payer **does not need** to deposit funds in advance before activation
 - After activation, if the payer's balance is insufficient, `redeem` will fail
-- This is a **design feature** that allows payers to deposit funds only when needed
 
 **Gas Consumption**:
 - Minimum: 37,931 gas
@@ -166,7 +159,6 @@ chequeBank.active(cheque);
 **⚠️ Important**:
 - `redeem` checks the payer's account balance
 - If the payer's balance is insufficient, the transaction will **revert and fail**
-- It is recommended to call `isChequeValid` to check cheque status and payer balance before calling `redeem`
 - Even if the cheque status is `Active`, `redeem` will still fail if the payer has not deposited sufficient funds
 
 **Gas Consumption**:
