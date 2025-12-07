@@ -340,6 +340,40 @@ chequeBank.notifySignOver(signOver);
 - Returns an array of results from all calls
 - Note: `multicall` itself does not use the `nonReentrant` modifier, but the called functions do
 
+**⚠️ Why `multicall` is NOT `payable`**:
+
+The `multicall` function is intentionally **not** `payable` for the following reasons:
+
+1. **Primary Use Case**: `multicall` is primarily designed for batching `nonpayable` function calls such as:
+   - `active()` - Activate cheques
+   - `redeem()` - Redeem cheques
+   - `revoke()` - Revoke cheques
+   - `notifySignOver()` - Notify sign-overs
+   - `withdraw()` - Withdraw funds
+   
+   These functions do not require ETH to be sent, making `multicall` a convenient way to execute multiple operations atomically.
+
+2. **Security Risks if `multicall` were `payable`**:
+   - **Multiple `deposit()` calls problem**: If `multicall` were `payable` and a user batches multiple `deposit()` calls:
+     ```solidity
+     // ❌ DANGEROUS: If multicall were payable
+     bytes[] memory calls = new bytes[](2);
+     calls[0] = abi.encodeWithSelector(ChequeBank.deposit.selector);
+     calls[1] = abi.encodeWithSelector(ChequeBank.deposit.selector);
+     chequeBank.multicall{value: 1 ether}(calls);  // User sends 1 ETH
+     ```
+     - Since `multicall` uses `delegatecall`, `msg.value` is preserved across all calls
+     - Both `deposit()` calls would see `msg.value = 1 ETH`
+     - This would cause double-counting: user's balance increases by 2 ETH, but only 1 ETH was sent
+     - The transaction would fail due to insufficient ETH, or cause contract insolvency
+
+   - **Nonpayable function conflicts**: If `multicall` were `payable` and the batch contains `nonpayable` functions (like `active()`, `redeem()`, etc.), calling them with `msg.value > 0` would cause the entire batch to revert, as Solidity automatically reverts when calling `nonpayable` functions with ETH
+
+**Design Principle**:
+- Functions that need ETH (like `deposit()`) should be called directly with the correct `msg.value`
+- `multicall` is designed for batching operations that don't require ETH transfers
+- This separation prevents accidental ETH loss and ensures clear, predictable behavior
+
 **Gas Consumption**:
 - Minimum: 116,248 gas
 - Average: 127,734 gas
